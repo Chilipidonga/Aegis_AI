@@ -4,6 +4,7 @@ import dotenv from 'dotenv';
 import http from 'http';
 import { WebSocketServer } from 'ws';
 import mongoose from 'mongoose';
+import axios from 'axios';
 import apiRoutes from './routes/apiRoutes.js';
 
 dotenv.config();
@@ -12,8 +13,8 @@ const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 5000;
 
-// Enable CORS and JSON parsing
-app.use(cors());
+// Enable CORS specifically for the Vite React frontend
+app.use(cors({ origin: 'http://localhost:5173' }));
 app.use(express.json());
 
 // Initialize WebSocket server for real-time telemetry streaming
@@ -33,15 +34,42 @@ app.use((req, res, next) => {
 });
 
 // Health check endpoint
-app.use('/api/v1', apiRoutes);
 app.get('/health', (req, res) => {
     res.status(200).json({ status: 'UP', gateway: 'AegisAI Active' });
 });
 
+// ==========================================
+// AI ROUTER FORWARDING LOGIC
+// ==========================================
+app.post('/api/ai/ask', async (req, res) => {
+    try {
+        const { prompt } = req.body;
+        
+        // Forward prompt to Python FastAPI backend running on port 8000
+        // Updated to send URL-encoded Form Data to the /api/v1/generate endpoint
+        const pythonResponse = await axios.post('http://localhost:8000/api/v1/generate', 
+            new URLSearchParams({ prompt: prompt || '' }),
+            { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+        );
+        
+        res.json(pythonResponse.data);
+    } catch (error) {
+        console.error("Python service error:", error.message);
+        res.status(500).json({ error: "AI Service Unavailable or Offline" });
+    }
+});
+
+// API Routes
+app.use('/api/v1', apiRoutes);
+
 // Database Connection
-mongoose.connect(process.env.MONGODB_URI)
-    .then(() => console.log('Successfully connected to MongoDB Atlas Securely.'))
-    .catch((err) => console.error('MongoDB connection fault:', err));
+if (process.env.MONGODB_URI) {
+    mongoose.connect(process.env.MONGODB_URI)
+        .then(() => console.log('Successfully connected to MongoDB Atlas Securely.'))
+        .catch((err) => console.error('MongoDB connection fault:', err));
+} else {
+    console.warn('⚠️ MONGODB_URI is not defined in .env file. Database connection skipped.');
+}
 
 // Start Server
 server.listen(PORT, () => {

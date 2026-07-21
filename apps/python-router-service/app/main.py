@@ -1,8 +1,15 @@
 import os
+import sys
+
+# 🛠️ Fix Windows PowerShell Unicode / Emoji encoding crashes
+if hasattr(sys.stdout, 'reconfigure') and sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
+    sys.stdout.reconfigure(encoding='utf-8')
+
 # 🛑 Force HuggingFace offline so it stops crashing the async HTTP client
 os.environ["HF_HUB_OFFLINE"] = "1" 
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
 import time
@@ -12,6 +19,7 @@ import PyPDF2
 import io
 import re
 from fastapi.responses import StreamingResponse
+from dotenv import load_dotenv
 
 # 🌟 NEW RAG IMPORTS (MongoDB Atlas)
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -21,7 +29,19 @@ from langchain_core.embeddings import Embeddings
 
 from duckduckgo_search import DDGS  # 🌐 Live Internet Search
 
+# Load environment variables to share the same .env as Node.js
+load_dotenv()
+
 app = FastAPI(title="AegisAI Local Router & Embedding Engine")
+
+# Add CORS so frontend can communicate directly if needed during dev
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 print("🤖 Loading local embedding model (all-MiniLM-L6-v2)...")
 model = SentenceTransformer('all-MiniLM-L6-v2')
@@ -35,6 +55,14 @@ class LocalEmbeddings(Embeddings):
         return model.encode([text])[0].tolist()
 
 local_embeddings = LocalEmbeddings()
+
+# 🔌 GLOBAL MONGODB CONNECTION (Optimized for performance)
+MONGO_URI = os.environ.get("MONGODB_URI", "mongodb://localhost:27017")
+mongo_client = MongoClient(MONGO_URI)
+db_name = "test"  
+collection_name = "caches"
+collection = mongo_client[db_name][collection_name]
+print("✅ Connected to MongoDB Atlas for Vector Search!")
 
 class EmbeddingRequest(BaseModel):
     text: str
@@ -156,22 +184,14 @@ async def generate_response(
                     chunks = text_splitter.split_text(extracted_text)
                     print(f"🔪 Split document into {len(chunks)} chunks.")
                     
-                    # 🔌 Connect to MongoDB Atlas
-                    MONGO_URI = os.environ.get("MONGO_URI", "mongodb://localhost:27017")
-                    mongo_client = MongoClient(MONGO_URI)
-                    
-                    db_name = "test"  # Matches your Atlas UI screenshot
-                    collection_name = "caches" # Matches your Atlas UI screenshot
-                    collection = mongo_client[db_name][collection_name]
-                    
-                    # Store and Index in MongoDB Atlas
+                    # Store and Index in MongoDB Atlas using the global collection
                     vectorstore = MongoDBAtlasVectorSearch.from_texts(
                         texts=chunks,
                         embedding=local_embeddings,
                         collection=collection,
-                        index_name="vector_index_1", # 👈 Matches the newly created index
+                        index_name="vector_index_1", 
                         text_key="text",
-                        embedding_key="embedding"    # 👈 Matches the JSON configuration path
+                        embedding_key="embedding"    
                     )
                     
                     # Retrieve Context
