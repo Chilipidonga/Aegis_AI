@@ -1,11 +1,12 @@
 import os
 import sys
+import asyncio
 
 # 🛠️ Fix Windows PowerShell Unicode / Emoji encoding crashes
 if hasattr(sys.stdout, 'reconfigure') and sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
     sys.stdout.reconfigure(encoding='utf-8')
 
-# 🛑 Force HuggingFace offline so it stops crashing the async HTTP client
+# 🛑 Force HuggingFace offline to avoid async HTTP client conflicts
 os.environ["HF_HUB_OFFLINE"] = "1" 
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
@@ -31,12 +32,12 @@ from duckduckgo_search import DDGS  # 🌐 Live Internet Search
 # 🚀 GROQ CLOUD LLM IMPORT
 from groq import AsyncGroq
 
-# Load environment variables to share the same .env as Node.js
+# Load environment variables
 load_dotenv()
 
 app = FastAPI(title="AegisAI Cloud Router & Embedding Engine")
 
-# Add CORS so frontend can communicate directly if needed during dev
+# Add CORS for cross-origin requests
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -90,10 +91,9 @@ async def get_embeddings(payload: EmbeddingRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# 🛠️ ASYNC TOOLS: Non-blocking multi-tool routing
+# 🛠️ ASYNC NON-BLOCKING TOOLS
 
-# 1. Web Search Tool
-async def perform_web_search(query: str, max_results: int = 3):
+def _sync_web_search(query: str, max_results: int = 3) -> str:
     try:
         with DDGS() as ddgs:
             results = list(ddgs.text(query, max_results=max_results))
@@ -110,7 +110,9 @@ async def perform_web_search(query: str, max_results: int = 3):
         print(f"Search tool error: {str(e)}")
         return f"Error executing live web search: {str(e)}"
 
-# 2. Global Weather Tool
+async def perform_web_search(query: str, max_results: int = 3):
+    return await asyncio.to_thread(_sync_web_search, query, max_results)
+
 async def get_live_weather(city: str = "Hyderabad"):
     async with httpx.AsyncClient() as client:
         try:
@@ -131,18 +133,22 @@ async def get_live_weather(city: str = "Hyderabad"):
             weather_data = weather_response.json()
             
             temp = weather_data['current_weather']['temperature']
-
             return f"Current temperature in {actual_city}, {country} is {temp}°C."
             
         except Exception as e:
             return f"Error fetching weather data: {str(e)}"
 
 
-# 🧠 THE STREAMING BRAIN: Cloud Groq Llama 3.3 with RAG & Chat Memory
+# 🧠 STREAMING ROUTER: Cloud Groq Llama 3.3 with Dynamic Settings
 @app.post("/api/v1/generate")
 async def generate_response(
     prompt: str = Form(...),          
     history: str = Form("[]"),        
+    systemPrompt: str = Form("You are Aegis, an advanced AI assistant."),
+    kValue: int = Form(5),
+    lowResourceMode: bool = Form(False),
+    userId: str = Form("guest"),
+    sessionId: str = Form("default"),
     file: UploadFile = File(None)     
 ):
     
@@ -163,9 +169,9 @@ async def generate_response(
 
             retrieved_context = ""
             
-            # 📄 2. TRUE RAG PIPELINE (MongoDB Atlas Vector Search)
+            # 📄 2. RAG PIPELINE (MongoDB Atlas Vector Search)
             if file:
-                yield f"data: {json.dumps({'status': f'Vectorizing document: {file.filename}...'})}\n\n"
+                yield f"data: {json.dumps({'status': f'Reading document: {file.filename}...'})}\n\n"
                 
                 file_bytes = await file.read()
                 extracted_text = ""
@@ -181,22 +187,27 @@ async def generate_response(
                         print(f"❌ PDF Parsing Error: {e}")
                 
                 if extracted_text.strip():
-                    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=250)
-                    chunks = text_splitter.split_text(extracted_text)
-                    print(f"🔪 Split document into {len(chunks)} chunks.")
+                    # 🌟 THE FIX: Inject full text directly to bypass MongoDB indexing delay
+                    # Groq's massive context window handles the entire document effortlessly!
+                    retrieved_context = extracted_text
                     
-                    vectorstore = MongoDBAtlasVectorSearch.from_texts(
-                        texts=chunks,
-                        embedding=local_embeddings,
-                        collection=collection,
-                        index_name="vector_index_1", 
-                        text_key="text",
-                        embedding_key="embedding"    
-                    )
-                    
-                    docs = vectorstore.similarity_search(prompt, k=8)
-                    retrieved_context = "\n\n".join([doc.page_content for doc in docs])
-                    print("✅ MongoDB Atlas Vector Retrieval Successful!")
+                    # Store in MongoDB in the background for future memory
+                    try:
+                        chunk_sz = 800 if lowResourceMode else 1500
+                        text_splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_sz, chunk_overlap=200)
+                        chunks = text_splitter.split_text(extracted_text)
+                        
+                        MongoDBAtlasVectorSearch.from_texts(
+                            texts=chunks,
+                            embedding=local_embeddings,
+                            collection=collection,
+                            index_name="vector_index_1", 
+                            text_key="text",
+                            embedding_key="embedding"    
+                        )
+                        print("✅ Document saved to MongoDB Atlas for future memory!")
+                    except Exception as db_err:
+                        print(f"⚠️ Vector DB save skipped/failed: {db_err}")
                 
                 yield f"data: {json.dumps({'status': ''})}\n\n"
 
@@ -204,7 +215,7 @@ async def generate_response(
             final_prompt = prompt
             
             if retrieved_context:
-                final_prompt = f"You are Aegis. Answer the user's query strictly using the provided Document Context. If the context does not contain the answer, reply 'I do not have enough information to answer that based on the document.'\n\nDocument Context:\n{retrieved_context}\n\nUser Query: {prompt}"
+                final_prompt = f"Answer strictly using the provided Document Context. If insufficient, state 'I do not have enough information to answer that based on the document.'\n\nDocument Context:\n{retrieved_context}\n\nUser Query: {prompt}"
             else:
                 prompt_lower = prompt.lower()
                 needs_weather = "weather" in prompt_lower
@@ -218,7 +229,7 @@ async def generate_response(
                         city_target = match.group(1).strip().split()[0]
                         
                     live_context = await get_live_weather(city_target)
-                    final_prompt = f"Use this real-time weather data to answer the query naturally:\n{live_context}\n\nUser Query: {prompt}"
+                    final_prompt = f"Use this real-time weather data to answer:\n{live_context}\n\nUser Query: {prompt}"
                     yield f"data: {json.dumps({'status': ''})}\n\n"
                     
                 elif needs_live_data:
@@ -226,7 +237,7 @@ async def generate_response(
                     print(f"🌍 Live search triggered for: {prompt}")
                     
                     live_context = await perform_web_search(prompt)
-                    final_prompt = f"Use this real-time internet context to answer the query:\n{live_context}\n\nUser Query: {prompt}"
+                    final_prompt = f"Use this real-time internet context to answer:\n{live_context}\n\nUser Query: {prompt}"
                     yield f"data: {json.dumps({'status': ''})}\n\n"
                 else:
                     print("🧠 Routing directly to Groq Cloud LLM")
@@ -234,14 +245,14 @@ async def generate_response(
             if history_context:
                 final_prompt = f"{history_context}\n{final_prompt}"
 
-            # 🚀 4. Stream response via Groq Cloud (Llama 3.3 70B)
+            # 🚀 4. Stream Response via Groq Cloud (Llama 3.3 70B)
             try:
                 stream = await groq_client.chat.completions.create(
                     model="llama-3.3-70b-versatile",
                     messages=[
                         {
                             "role": "system",
-                            "content": "You are Aegis, an advanced and highly capable general-purpose AI assistant. You have expert-level knowledge in full-stack web development, generative AI engineering, cybersecurity, and general logic. Your goal is to be universally helpful, providing clear, accurate, and insightful answers to any query the user provides. When writing code, always provide clean, production-ready examples. When provided with live internet context, incorporate it naturally into your response without explicitly saying you are reading a search result."
+                            "content": systemPrompt
                         },
                         {
                             "role": "user", 

@@ -4,9 +4,8 @@ import 'highlight.js/styles/atom-one-dark-reasonable.css';
 import { useState, useRef, useEffect } from 'react';
 import { 
   ShieldCheckIcon, PaperAirplaneIcon, ChatBubbleBottomCenterTextIcon, 
-  PlusIcon, UserCircleIcon, BoltIcon, CloudIcon, CodeBracketIcon,
-  PaperClipIcon, XMarkIcon, DocumentIcon, PhotoIcon, ArrowRightOnRectangleIcon,
-  Cog6ToothIcon, TrashIcon
+  PlusIcon, UserCircleIcon, Cog6ToothIcon, TrashIcon,
+  DocumentIcon, PhotoIcon, ArrowRightOnRectangleIcon, XMarkIcon, PaperClipIcon
 } from '@heroicons/react/24/outline';
 
 export default function Chat() {
@@ -48,10 +47,8 @@ export default function Chat() {
   const textareaRef = useRef(null);
 
   // ==========================================
-  // 💾 PERSISTENCE & LIFECYCLE (THE FIX)
+  // 💾 PERSISTENCE & LIFECYCLE
   // ==========================================
-
-  // 1. Load Everything on Mount
   useEffect(() => {
     const token = localStorage.getItem('aegis_token');
     const storedUser = localStorage.getItem('aegis_user');
@@ -60,13 +57,11 @@ export default function Chat() {
       setCurrentUser(JSON.parse(storedUser));
       setIsAuthenticated(true);
 
-      // 👉 Restore Sessions from Memory
       const savedSessions = localStorage.getItem('aegis_sessions');
       if (savedSessions) {
         const parsedSessions = JSON.parse(savedSessions);
         setDynamicSessions(parsedSessions);
         
-        // 👉 Auto-load the most recent chat so the screen isn't blank
         if (parsedSessions.length > 0) {
           const lastSessionId = parsedSessions[0].id;
           setActiveSessionId(lastSessionId);
@@ -77,18 +72,15 @@ export default function Chat() {
     }
   }, []);
 
-  // 2. Auto-save chat history whenever it updates
   useEffect(() => {
     if (activeSessionId && chatHistory.length > 0) {
       localStorage.setItem(`aegis_chat_${activeSessionId}`, JSON.stringify(chatHistory));
     }
   }, [chatHistory, activeSessionId]);
 
-  // 3. Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatResponse, toolStatus, isGenerating, chatHistory]);
-
 
   // ==========================================
   // 🔐 AUTHENTICATION HANDLERS
@@ -96,6 +88,7 @@ export default function Chat() {
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
     setAuthError('');
+    // 🟢 Keep Auth routed to the Node Gateway (Port 5005)
     const endpoint = authMode === 'signup' ? 'http://localhost:5005/api/v1/signup' : 'http://localhost:5005/api/v1/login';
     
     try {
@@ -130,8 +123,6 @@ export default function Chat() {
   // ==========================================
   // 🧠 CHAT HANDLERS
   // ==========================================
-
-  // 👉 NEW: Load a specific session when clicked in the sidebar
   const loadSession = (sessionId) => {
     setActiveSessionId(sessionId);
     const savedHistory = localStorage.getItem(`aegis_chat_${sessionId}`);
@@ -142,7 +133,6 @@ export default function Chat() {
       setChatHistory([]);
     }
     
-    // Clear active typing states
     setCurrentQuery('');
     setChatResponse('');
     setToolStatus('');
@@ -162,9 +152,7 @@ export default function Chat() {
 
   const handleStarterPrompt = (text) => {
     setPrompt(text);
-    if (textareaRef.current) {
-      textareaRef.current.focus(); 
-    }
+    if (textareaRef.current) textareaRef.current.focus(); 
   };
 
   const handleFileChange = (e) => {
@@ -204,7 +192,6 @@ export default function Chat() {
       currentId = Date.now().toString();
       setActiveSessionId(currentId);
       
-      // 👉 NEW: Save sessions to LocalStorage immediately when created
       setDynamicSessions(prev => {
         const newSessions = [
           { id: currentId, title: finalPrompt.length > 25 ? finalPrompt.substring(0, 25) + '...' : (finalPrompt || "File Upload") },
@@ -233,7 +220,7 @@ export default function Chat() {
       formData.append('prompt', finalPrompt);
       formData.append("history", JSON.stringify(chatHistory));
       
-      formData.append('userId', currentUser.id);
+      formData.append('userId', currentUser?.id || 'guest');
       formData.append('sessionId', currentId);
       
       formData.append('systemPrompt', aegisSettings.systemPrompt);
@@ -242,35 +229,57 @@ export default function Chat() {
       
       if (fileToSend) formData.append('file', fileToSend);
 
-      const response = await fetch('http://localhost:5005/api/v1/generate', {
+      // 🟢 FIX 2: Route heavy generation/file payloads directly to Python on Port 8000
+      const response = await fetch('http://localhost:8000/api/v1/generate', {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${localStorage.getItem('aegis_token')}` },
+        headers: { 
+          'Authorization': `Bearer ${localStorage.getItem('aegis_token')}` 
+          // Note: Do NOT set Content-Type for FormData, browser sets it automatically with the correct boundary
+        },
         body: formData,
       });
 
       if (!response.body) throw new Error('ReadableStream not supported.');
 
+      // 🟢 FIX 1: Robust SSE buffer parsing logic
       const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let done = false;
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
 
-      while (!done) {
-        const { value, done: readerDone } = await reader.read();
-        done = readerDone;
-        if (value) {
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n');
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        
+        buffer += decoder.decode(value, { stream: true });
+        
+        // Split precisely by double newlines to isolate complete SSE events
+        const chunks = buffer.split('\n\n');
+        buffer = chunks.pop() || ''; // Keep the last incomplete chunk in the buffer
 
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const parsedData = JSON.parse(line.slice(6));
-                if (parsedData.status !== undefined) setToolStatus(parsedData.status);
-                if (parsedData.token) {
-                  accumulatedResponse += parsedData.token; 
-                  setChatResponse((prev) => prev + parsedData.token); 
-                }
-              } catch (err) {}
+        for (const chunk of chunks) {
+          if (chunk.startsWith('data: ')) {
+            const jsonStr = chunk.replace('data: ', '').trim();
+            if (!jsonStr) continue;
+
+            try {
+              const parsedData = JSON.parse(jsonStr);
+              
+              if (parsedData.status !== undefined) {
+                setToolStatus(parsedData.status);
+              }
+              
+              if (parsedData.token) {
+                accumulatedResponse += parsedData.token;
+                // Using accumulated response prevents dropped tokens when React batches state updates
+                setChatResponse(accumulatedResponse); 
+              }
+
+              if (parsedData.error) {
+                setChatResponse(prev => prev + '\n\n❌ System Error: ' + parsedData.error);
+              }
+            } catch (err) {
+              // Gracefully ignore malformed JSON chunks from transit
+              console.warn("Skipped malformed chunk");
             }
           }
         }
@@ -287,7 +296,7 @@ export default function Chat() {
 
     } catch (error) {
       console.error('Streaming engine failed:', error);
-      setChatResponse('❌ System engine failure processing request.');
+      setChatResponse('❌ System engine failure. Ensure Python Router (Port 8000) is running.');
     } finally {
       setIsGenerating(false);
     }
@@ -370,7 +379,6 @@ export default function Chat() {
             </div>
             
             <div className="p-6 space-y-6">
-              {/* System Prompt Settings */}
               <div>
                 <label className="block text-sm font-semibold text-gray-400 mb-2 uppercase tracking-wider">Core Directive (System Prompt)</label>
                 <textarea 
@@ -380,7 +388,6 @@ export default function Chat() {
                 />
               </div>
 
-              {/* RAG Context Window Slider */}
               <div>
                 <label className="flex justify-between text-sm font-semibold text-gray-400 mb-2 uppercase tracking-wider">
                   <span>RAG Context Governor (k-value)</span>
@@ -395,7 +402,6 @@ export default function Chat() {
                 <p className="text-xs text-gray-500 mt-2">Higher values improve document context but consume more memory.</p>
               </div>
 
-              {/* Hardware Toggles */}
               <div className="flex items-center justify-between bg-[#111827] p-4 rounded-xl border border-gray-700">
                 <div>
                   <h4 className="text-sm font-semibold text-gray-200">Low Resource Mode</h4>
@@ -407,7 +413,6 @@ export default function Chat() {
                 </label>
               </div>
 
-              {/* Danger Zone */}
               <div className="pt-4 border-t border-gray-700">
                 <button onClick={purgeVectorCache} className="w-full flex items-center justify-center gap-2 bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 font-semibold py-3 rounded-xl transition-colors">
                   <TrashIcon className="w-5 h-5" /> Purge Local Vector Cache
@@ -429,7 +434,6 @@ export default function Chat() {
           <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4 px-3">Sessions</h2>
           {dynamicSessions.length === 0 && <p className="px-3 text-sm text-gray-500 italic">No previous sessions</p>}
           
-          {/* 👉 NEW: Button onClick triggers loadSession() */}
           {dynamicSessions.map((session) => (
             <button 
               key={session.id} 
@@ -447,7 +451,6 @@ export default function Chat() {
             <PlusIcon className="w-6 h-6" /> New Chat
           </button>
           
-          {/* User Profile & Actions */}
           <div className="flex items-center justify-between bg-[#111827] p-3 rounded-xl border border-gray-700">
             <div className="flex items-center gap-3 truncate">
               <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
@@ -492,7 +495,6 @@ export default function Chat() {
                 I am Aegis, your local Omni-AI. I can debug architectures, analyze security threats, and execute logic securely.
               </p>
               
-              {/* Sleek, non-intrusive suggestion pills */}
               <div className="flex flex-wrap justify-center gap-3 w-full max-w-3xl">
                 <button 
                   onClick={() => handleStarterPrompt("Can you review this React component for performance bottlenecks?\n\n```javascript\n\n```")} 
@@ -567,12 +569,16 @@ export default function Chat() {
                   </div>
                 )}
                 {chatResponse && (
-                  <div className="bg-[#1f2937] text-gray-200 p-6 rounded-2xl rounded-bl-none border border-gray-700 shadow-lg overflow-x-auto text-[16px]">
-                    <div className="prose prose-invert prose-emerald max-w-none">
-                      <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{chatResponse}</ReactMarkdown>
-                    </div>
-                  </div>
-                )}
+  <div className="bg-[#1f2937] text-gray-200 p-6 rounded-2xl rounded-bl-none border border-gray-700 shadow-lg overflow-x-auto text-[16px]">
+    <div className="prose prose-invert prose-emerald max-w-none">
+      {isGenerating ? (
+        <div className="whitespace-pre-wrap font-sans leading-relaxed">{chatResponse}</div>
+      ) : (
+        <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{chatResponse}</ReactMarkdown>
+      )}
+    </div>
+  </div>
+)}
               </div>
             </div>
           )}
