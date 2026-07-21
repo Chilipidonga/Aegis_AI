@@ -1,5 +1,13 @@
 fastapi
 uvicorn
-sentence-transformers
-torch
 pydantic
+sentence-transformers
+httpx
+PyPDF2
+langchain-text-splitters
+pymongo
+langchain-mongodb
+langchain-core
+duckduckgo-search
+python-dotenv
+groq
