@@ -49,16 +49,23 @@ app.add_middleware(
 # Initialize Groq Async Client
 groq_client = AsyncGroq(api_key=os.environ.get("GROQ_API_KEY"))
 
-print("🤖 Loading local embedding model (all-MiniLM-L6-v2)...")
-model = SentenceTransformer('all-MiniLM-L6-v2')
-print("✅ Local embedding model loaded successfully with zero API dependencies!")
+# 🌟 LAZY-LOADED EMBEDDING MODEL (Prevents startup memory crashes & port timeouts)
+_model = None
+
+def get_embedding_model():
+    global _model
+    if _model is None:
+        print("🤖 Lazy-loading embedding model (all-MiniLM-L6-v2)...")
+        _model = SentenceTransformer('all-MiniLM-L6-v2')
+        print("✅ Embedding model loaded successfully!")
+    return _model
 
 # 🌟 CUSTOM EMBEDDING WRAPPER FOR MONGODB
 class LocalEmbeddings(Embeddings):
     def embed_documents(self, texts):
-        return model.encode(texts).tolist()
+        return get_embedding_model().encode(texts).tolist()
     def embed_query(self, text):
-        return model.encode([text])[0].tolist()
+        return get_embedding_model().encode([text])[0].tolist()
 
 local_embeddings = LocalEmbeddings()
 
@@ -81,7 +88,8 @@ class EmbeddingResponse(BaseModel):
 async def get_embeddings(payload: EmbeddingRequest):
     try:
         start_time = time.time()
-        vector = model.encode(payload.text).tolist()
+        m = get_embedding_model()
+        vector = m.encode(payload.text).tolist()
         duration = (time.time() - start_time) * 1000
         return EmbeddingResponse(
             embedding=vector,
