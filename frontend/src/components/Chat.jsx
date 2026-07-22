@@ -88,8 +88,8 @@ export default function Chat() {
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
     setAuthError('');
-    // 🟢 Keep Auth routed to the Node Gateway (Port 5005)
-    const endpoint = authMode === 'signup' ? 'http://localhost:5005/api/v1/signup' : 'http://localhost:5005/api/v1/login';
+    // 🟢 Keep Auth routed to the Node Gateway on Render
+    const endpoint = authMode === 'signup' ? 'https://aegis-gateway-server.onrender.com/api/v1/signup' : 'https://aegis-gateway-server.onrender.com/api/v1/login';
     
     try {
       const res = await fetch(endpoint, {
@@ -229,8 +229,8 @@ export default function Chat() {
       
       if (fileToSend) formData.append('file', fileToSend);
 
-      // 🟢 FIX 2: Route heavy generation/file payloads directly to Python on Port 8000
-      const response = await fetch('http://localhost:8000/api/v1/generate', {
+      // 🟢 FIX 2: Route heavy generation/file payloads directly to Python on Render
+      const response = await fetch('https://aegis-python-router.onrender.com/api/v1/generate', {
         method: 'POST',
         headers: { 
           'Authorization': `Bearer ${localStorage.getItem('aegis_token')}` 
@@ -296,7 +296,7 @@ export default function Chat() {
 
     } catch (error) {
       console.error('Streaming engine failed:', error);
-      setChatResponse('❌ System engine failure. Ensure Python Router (Port 8000) is running.');
+      setChatResponse('❌ System engine failure. Ensure Python Router is running.');
     } finally {
       setIsGenerating(false);
     }
