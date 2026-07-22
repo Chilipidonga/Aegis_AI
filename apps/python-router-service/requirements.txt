@@ -1,3 +1,5 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+
 fastapi
 uvicorn
 pydantic
@@ -7,7 +9,7 @@ PyPDF2
 langchain-text-splitters
 pymongo
 langchain-mongodb
-langchain-core
 duckduckgo-search
-python-dotenv
 groq
+python-dotenv
+torch
