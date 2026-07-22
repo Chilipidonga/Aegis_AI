@@ -13,8 +13,25 @@ const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 5000;
 
-// Enable CORS specifically for the Vite React frontend
-app.use(cors({ origin: 'http://localhost:5173' }));
+// Configured CORS to allow both local development and live Vercel production
+const allowedOrigins = [
+  'http://localhost:5173',
+  'https://aegis-ai-omega-three.vercel.app'
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like server-to-server or Postman)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
+    } else {
+      return callback(new Error('CORS policy error: Origin not allowed'));
+    }
+  },
+  credentials: true
+}));
+
 app.use(express.json());
 
 // Initialize WebSocket server for real-time telemetry streaming
@@ -45,9 +62,10 @@ app.post('/api/ai/ask', async (req, res) => {
     try {
         const { prompt } = req.body;
         
-        // Forward prompt to Python FastAPI backend running on port 8000
-        // Updated to send URL-encoded Form Data to the /api/v1/generate endpoint
-        const pythonResponse = await axios.post('http://localhost:8000/api/v1/generate', 
+        // Uses Environment Variable on Render, falls back to local Python server port 8000
+        const pythonUrl = process.env.PYTHON_SERVICE_URL || 'http://localhost:8000/api/v1/generate';
+
+        const pythonResponse = await axios.post(pythonUrl, 
             new URLSearchParams({ prompt: prompt || '' }),
             { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
         );
