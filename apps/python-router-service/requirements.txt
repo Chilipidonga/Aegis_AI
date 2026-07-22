@@ -13,3 +13,4 @@ duckduckgo-search
 groq
 python-dotenv
 torch
+python-multipart
