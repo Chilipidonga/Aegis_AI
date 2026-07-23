@@ -9,7 +9,7 @@ if hasattr(sys.stdout, 'reconfigure') and sys.stdout.encoding and sys.stdout.enc
 # 🛑 Force HuggingFace offline to avoid async HTTP client conflicts
 os.environ["HF_HUB_OFFLINE"] = "1" 
 
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
@@ -21,6 +21,11 @@ import io
 import re
 from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
+
+# 🛡️ RATE LIMITER IMPORTS
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 # 🌟 RAG IMPORTS (MongoDB Atlas)
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -36,6 +41,11 @@ from groq import AsyncGroq
 load_dotenv()
 
 app = FastAPI(title="AegisAI Cloud Router & Embedding Engine")
+
+# 🛡️ INITIALIZE RATE LIMITER
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Add CORS for cross-origin requests
 app.add_middleware(
@@ -288,6 +298,8 @@ async def generate_response(
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
-@app.get("/health")
-def health_check():
+# 🛡️ SECURE HEALTH CHECK & KEEP-ALIVE
+@app.get("/api/v1/health")
+@limiter.limit("5/15minutes")
+def health_check(request: Request):
     return {"status": "healthy", "engine": "MongoDB Atlas Vector Search, Groq Llama 3.3, & DDGS"}

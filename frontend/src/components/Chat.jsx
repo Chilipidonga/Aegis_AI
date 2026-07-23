@@ -555,25 +555,25 @@ export default function Chat() {
                   onClick={() => handleStarterPrompt("Can you review this React component for performance bottlenecks?\n\n```javascript\n\n```")} 
                   className="px-4 py-2 sm:px-5 sm:py-2.5 bg-[#1f2937] border border-gray-700 rounded-full hover:border-emerald-500 hover:text-emerald-400 text-xs sm:text-sm font-medium text-gray-300 transition-colors shadow-sm"
                 >
-                  ⚡ Optimize React Code
+                   Optimize React Code
                 </button>
                 <button 
                   onClick={() => handleStarterPrompt("Analyze the attached document and summarize the key security vulnerabilities.")} 
                   className="px-4 py-2 sm:px-5 sm:py-2.5 bg-[#1f2937] border border-gray-700 rounded-full hover:border-emerald-500 hover:text-emerald-400 text-xs sm:text-sm font-medium text-gray-300 transition-colors shadow-sm"
                 >
-                  📄 Summarize Document
+                   Summarize Document
                 </button>
                 <button 
                   onClick={() => handleStarterPrompt("Write a secure, production-ready REST API endpoint in Node.js for...")} 
                   className="px-4 py-2 sm:px-5 sm:py-2.5 bg-[#1f2937] border border-gray-700 rounded-full hover:border-emerald-500 hover:text-emerald-400 text-xs sm:text-sm font-medium text-gray-300 transition-colors shadow-sm"
                 >
-                  🛠️ Generate API
+                   Generate API
                 </button>
                 <button 
                   onClick={() => handleStarterPrompt("Explain the exact differences between fine-tuning an LLM and using a RAG architecture.")} 
                   className="px-4 py-2 sm:px-5 sm:py-2.5 bg-[#1f2937] border border-gray-700 rounded-full hover:border-emerald-500 hover:text-emerald-400 text-xs sm:text-sm font-medium text-gray-300 transition-colors shadow-sm"
                 >
-                  🧠 Compare AI Models
+                   Compare AI Models
                 </button>
               </div>
             </div>

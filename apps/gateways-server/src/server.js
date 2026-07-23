@@ -5,6 +5,7 @@ import http from 'http';
 import { WebSocketServer } from 'ws';
 import mongoose from 'mongoose';
 import axios from 'axios';
+import rateLimit from 'express-rate-limit'; // 🟢 ADDED: Rate Limiter
 import apiRoutes from './routes/apiRoutes.js';
 
 dotenv.config();
@@ -50,9 +51,21 @@ app.use((req, res, next) => {
     next();
 });
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-    res.status(200).json({ status: 'UP', gateway: 'AegisAI Active' });
+// ==========================================
+// 🛡️ SECURE HEALTH CHECK & KEEP-ALIVE
+// ==========================================
+// 🟢 Configure the rate limiter: Max 5 requests per 15 minutes per IP
+const healthLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, 
+    max: 5, 
+    message: { status: '429', error: 'Too many health check requests. Rate limit active.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// 🟢 Attached the limiter and updated the path to match your cron job
+app.get('/api/v1/health', healthLimiter, (req, res) => {
+    res.status(200).json({ status: 'UP', gateway: 'AegisAI Active and Awake' });
 });
 
 // ==========================================
