@@ -5,7 +5,8 @@ import { useState, useRef, useEffect } from 'react';
 import { 
   ShieldCheckIcon, PaperAirplaneIcon, ChatBubbleBottomCenterTextIcon, 
   PlusIcon, UserCircleIcon, Cog6ToothIcon, TrashIcon,
-  DocumentIcon, PhotoIcon, ArrowRightOnRectangleIcon, XMarkIcon, PaperClipIcon
+  DocumentIcon, PhotoIcon, ArrowRightOnRectangleIcon, XMarkIcon, PaperClipIcon,
+  Bars3Icon // 🟢 Added Hamburger Menu Icon for Mobile
 } from '@heroicons/react/24/outline';
 
 export default function Chat() {
@@ -17,11 +18,13 @@ export default function Chat() {
   const [currentUser, setCurrentUser] = useState(null);
   const [authForm, setAuthForm] = useState({ name: '', phone: '', pin: '' });
   const [authError, setAuthError] = useState('');
-
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
+  
   // ==========================================
-  // ⚙️ AEGIS SETTINGS STATE
+  // ⚙️ AEGIS SETTINGS & MOBILE SIDEBAR STATE
   // ==========================================
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // 🟢 Mobile Drawer Toggle
   const [aegisSettings, setAegisSettings] = useState({
     systemPrompt: "You are Aegis, an advanced and highly capable general-purpose AI assistant. You have expert-level knowledge in full-stack web development, generative AI engineering, cybersecurity, and general logic.",
     kValue: 5,
@@ -88,6 +91,8 @@ export default function Chat() {
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
     setAuthError('');
+    setIsAuthLoading(true);
+    
     const endpoint = authMode === 'signup' ? 'https://aegis-gateway-server.onrender.com/api/v1/signup' : 'https://aegis-gateway-server.onrender.com/api/v1/login';
     
     try {
@@ -107,6 +112,8 @@ export default function Chat() {
       setIsAuthenticated(true);
     } catch (err) {
       setAuthError(err.message);
+    } finally {
+      setIsAuthLoading(false);
     }
   };
 
@@ -135,6 +142,17 @@ export default function Chat() {
     setCurrentQuery('');
     setChatResponse('');
     setToolStatus('');
+    setIsMobileMenuOpen(false); // Close mobile drawer on select
+  };
+
+  const startNewChat = () => {
+    setCurrentQuery(''); 
+    setChatResponse(''); 
+    setToolStatus(''); 
+    setChatHistory([]); 
+    setActiveSessionId(null); 
+    clearFile();
+    setIsMobileMenuOpen(false); // Close mobile drawer
   };
 
   const handleInput = (e) => {
@@ -297,6 +315,61 @@ export default function Chat() {
 
   const hasActiveChat = currentQuery || chatResponse || isGenerating || chatHistory.length > 0;
 
+  // Sidebar Content Reusable Helper
+  const renderSidebarContent = () => (
+    <>
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-3">
+          <ShieldCheckIcon className="w-10 h-10 text-emerald-500" />
+          <h1 className="text-3xl font-bold text-gray-50 tracking-tight">Aegis_<span className="text-emerald-500 font-extralight">ai</span></h1>
+        </div>
+        <button onClick={() => setIsMobileMenuOpen(false)} className="md:hidden text-gray-400 hover:text-white">
+          <XMarkIcon className="w-6 h-6" />
+        </button>
+      </div>
+      
+      <button onClick={startNewChat} className="w-full flex items-center justify-center gap-3 bg-emerald-600 text-white font-semibold py-3 px-6 rounded-xl hover:bg-emerald-500 transition-colors shadow-md mb-6">
+        <PlusIcon className="w-6 h-6" /> New Chat
+      </button>
+
+      <nav className="flex-grow space-y-2 overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-gray-700 mb-6">
+        <h2 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-2">Sessions</h2>
+        {dynamicSessions.length === 0 && <p className="px-2 text-sm text-gray-500 italic">No previous sessions</p>}
+        
+        {dynamicSessions.map((session) => (
+          <button 
+            key={session.id} 
+            onClick={() => loadSession(session.id)}
+            className={`flex w-full items-center gap-3 px-3 py-2.5 rounded-xl transition-colors duration-150 group ${activeSessionId === session.id ? 'bg-[#2e3a4e] text-emerald-400' : 'text-gray-300 hover:bg-[#2e3a4e]'}`}
+          >
+            <ChatBubbleBottomCenterTextIcon className={`w-5 h-5 shrink-0 ${activeSessionId === session.id ? 'text-emerald-400' : 'text-gray-500 group-hover:text-emerald-400'}`} />
+            <span className="font-medium text-sm truncate">{session.title}</span>
+          </button>
+        ))}
+      </nav>
+
+      <div className="mt-auto pt-4 border-t border-gray-700">
+        <div className="flex items-center justify-between bg-[#111827] p-3 rounded-xl border border-gray-700">
+          <div className="flex items-center gap-3 truncate">
+            <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold shrink-0">
+              {currentUser?.name?.charAt(0).toUpperCase() || 'U'}
+            </div>
+            <span className="text-sm font-medium truncate text-gray-300">{currentUser?.name || 'User'}</span>
+          </div>
+          
+          <div className="flex items-center gap-1 shrink-0">
+            <button onClick={() => { setIsSettingsOpen(true); setIsMobileMenuOpen(false); }} className="p-1.5 text-gray-400 hover:text-emerald-400 transition-colors rounded-lg hover:bg-[#1f2937]" title="Settings">
+              <Cog6ToothIcon className="w-5 h-5" />
+            </button>
+            <button onClick={logout} className="p-1.5 text-gray-400 hover:text-red-400 transition-colors rounded-lg hover:bg-[#1f2937]" title="Logout">
+              <ArrowRightOnRectangleIcon className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+
   // ==========================================
   // 🎨 RENDER AUTHENTICATION SCREEN
   // ==========================================
@@ -337,8 +410,22 @@ export default function Chat() {
               value={authForm.pin} onChange={e => setAuthForm({...authForm, pin: e.target.value})}
             />
             
-            <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 rounded-xl transition-colors mt-2 shadow-lg">
-              {authMode === 'login' ? 'Initialize Session' : 'Create Access'}
+            <button 
+              type="submit" 
+              disabled={isAuthLoading}
+              className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-emerald-800 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl transition-colors mt-2 shadow-lg"
+            >
+              {isAuthLoading ? (
+                <>
+                  <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>Processing...</span>
+                </>
+              ) : (
+                authMode === 'login' ? 'Initialize Session' : 'Create Access'
+              )}
             </button>
           </form>
           <p className="text-center text-gray-500 mt-6 text-sm">
@@ -416,59 +503,34 @@ export default function Chat() {
         </div>
       )}
 
-      {/* Sidebar */}
-      <aside className="w-72 bg-[#1f2937] p-6 flex flex-col border-r border-gray-700 hidden md:flex shrink-0">
-        <div className="flex items-center gap-3 mb-10">
-          <ShieldCheckIcon className="w-10 h-10 text-emerald-500" />
-          <h1 className="text-3xl font-bold text-gray-50 tracking-tight">Aegis_<span className="text-emerald-500 font-extralight">ai</span></h1>
-        </div>
-        
-        <nav className="flex-grow space-y-3 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-700">
-          <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4 px-3">Sessions</h2>
-          {dynamicSessions.length === 0 && <p className="px-3 text-sm text-gray-500 italic">No previous sessions</p>}
-          
-          {dynamicSessions.map((session) => (
-            <button 
-              key={session.id} 
-              onClick={() => loadSession(session.id)}
-              className={`flex w-full items-center gap-3 px-4 py-3 rounded-xl transition-colors duration-150 group ${activeSessionId === session.id ? 'bg-[#2e3a4e] text-emerald-400' : 'text-gray-300 hover:bg-[#2e3a4e]'}`}
-            >
-              <ChatBubbleBottomCenterTextIcon className={`w-5 h-5 shrink-0 ${activeSessionId === session.id ? 'text-emerald-400' : 'text-gray-500 group-hover:text-emerald-400'}`} />
-              <span className="font-medium text-[15px] truncate">{session.title}</span>
-            </button>
-          ))}
-        </nav>
-
-        <div className="mt-auto space-y-3">
-          <button onClick={() => { setCurrentQuery(''); setChatResponse(''); setToolStatus(''); setChatHistory([]); setActiveSessionId(null); clearFile(); }} className="w-full flex items-center justify-center gap-3 bg-emerald-600 text-white font-semibold py-3.5 px-6 rounded-xl hover:bg-emerald-500 transition-colors shadow-md">
-            <PlusIcon className="w-6 h-6" /> New Chat
-          </button>
-          
-          <div className="flex items-center justify-between bg-[#111827] p-3 rounded-xl border border-gray-700">
-            <div className="flex items-center gap-3 truncate">
-              <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold">
-                {currentUser?.name?.charAt(0).toUpperCase() || 'U'}
-              </div>
-              <span className="text-sm font-medium truncate text-gray-300">{currentUser?.name || 'User'}</span>
-            </div>
-            
-            <div className="flex items-center gap-1">
-              <button onClick={() => setIsSettingsOpen(true)} className="p-1.5 text-gray-500 hover:text-emerald-400 transition-colors rounded-lg hover:bg-[#1f2937]" title="Settings">
-                <Cog6ToothIcon className="w-5 h-5" />
-              </button>
-              <button onClick={logout} className="p-1.5 text-gray-500 hover:text-red-400 transition-colors rounded-lg hover:bg-[#1f2937]" title="Logout">
-                <ArrowRightOnRectangleIcon className="w-5 h-5" />
-              </button>
-            </div>
+      {/* 📱 MOBILE SLIDE-OUT MENU OVERLAY (ChatGPT Style) */}
+      {isMobileMenuOpen && (
+        <div className="fixed inset-0 z-40 flex md:hidden">
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)}></div>
+          <div className="relative flex-1 flex flex-col max-w-xs w-full bg-[#1f2937] p-6 z-50 shadow-2xl border-r border-gray-700">
+            {renderSidebarContent()}
           </div>
         </div>
+      )}
+
+      {/* 💻 DESKTOP SIDEBAR */}
+      <aside className="w-72 bg-[#1f2937] p-6 flex flex-col border-r border-gray-700 hidden md:flex shrink-0">
+        {renderSidebarContent()}
       </aside>
 
       {/* Main Chat Area */}
       <main className="flex-1 flex flex-col p-4 sm:p-6 lg:p-12 xl:px-32 xl:py-12 h-full relative overflow-x-hidden w-full">
         <header className="flex items-center justify-between pb-4 sm:pb-6 mb-4 sm:mb-6 border-b border-gray-700 shrink-0">
           <div className="flex items-center gap-3 sm:gap-4">
-            <ChatBubbleBottomCenterTextIcon className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-500 shrink-0" />
+            {/* 🟢 Mobile Menu Hamburger Button */}
+            <button 
+              onClick={() => setIsMobileMenuOpen(true)} 
+              className="p-1.5 text-gray-300 hover:text-emerald-400 border border-gray-700 rounded-lg md:hidden"
+              title="Open Menu"
+            >
+              <Bars3Icon className="w-6 h-6" />
+            </button>
+            <ChatBubbleBottomCenterTextIcon className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-500 shrink-0 hidden sm:block" />
             <h1 className="text-xl sm:text-2xl font-extrabold text-gray-50 tracking-tighter truncate">Aegis Terminal</h1>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 bg-[#1f2937] px-3 sm:px-4 py-1.5 sm:py-2 rounded-full border border-gray-700 shadow-inner shrink-0">

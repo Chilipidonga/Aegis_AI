@@ -19,13 +19,36 @@
     <meta charset="UTF-8" />
     
     <!-- Using the direct URL for your favicon -->
-    <link rel="icon" type="image/png" href="https://e1.pngegg.com/pngimages/413/842/png-clipart-black-n-white-adobe-ai-thumbnail.png" />
+    <link rel="icon" type="image/png" href="https://images.media.io/ai-prompts/ai-logo-design-3.jpg" />
     
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Aegis AI</title>
   </head>
   <body class="overflow-x-hidden bg-[#111827]">
-    <div id="root"></div>
+    <div id="root">
+      <!-- Aegis Initial Boot Loader -->
+      <div style="display: flex; height: 100vh; width: 100vw; background-color: #111827; align-items: center; justify-content: center; flex-direction: column; font-family: system-ui, -apple-system, sans-serif;">
+        
+        <!-- Spinning Emerald Ring -->
+        <style>
+          @keyframes spin { to { transform: rotate(360deg); } }
+          @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+          .aegis-spinner { animation: spin 1s linear infinite; color: #10b981; width: 48px; height: 48px; margin-bottom: 24px; }
+          .aegis-text { color: #f9fafb; font-size: 28px; font-weight: 800; letter-spacing: -0.05em; margin: 0; }
+          .aegis-sub { color: #10b981; font-weight: 300; }
+          .aegis-status { color: #9ca3af; font-size: 12px; text-transform: uppercase; letter-spacing: 0.2em; margin-top: 16px; animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        </style>
+
+        <svg class="aegis-spinner" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle style="opacity: 0.25;" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path style="opacity: 0.75;" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+
+        <h1 class="aegis-text">Aegis_<span class="aegis-sub">ai</span></h1>
+        <p class="aegis-status">Establishing Secure Connection...</p>
+
+      </div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
