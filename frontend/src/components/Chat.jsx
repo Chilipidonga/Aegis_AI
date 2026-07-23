@@ -88,7 +88,6 @@ export default function Chat() {
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
     setAuthError('');
-    // 🟢 Keep Auth routed to the Node Gateway on Render
     const endpoint = authMode === 'signup' ? 'https://aegis-gateway-server.onrender.com/api/v1/signup' : 'https://aegis-gateway-server.onrender.com/api/v1/login';
     
     try {
@@ -229,19 +228,16 @@ export default function Chat() {
       
       if (fileToSend) formData.append('file', fileToSend);
 
-      // 🟢 FIX 2: Route heavy generation/file payloads directly to Python on Render
       const response = await fetch('https://aegis-python-router.onrender.com/api/v1/generate', {
         method: 'POST',
         headers: { 
           'Authorization': `Bearer ${localStorage.getItem('aegis_token')}` 
-          // Note: Do NOT set Content-Type for FormData, browser sets it automatically with the correct boundary
         },
         body: formData,
       });
 
       if (!response.body) throw new Error('ReadableStream not supported.');
 
-      // 🟢 FIX 1: Robust SSE buffer parsing logic
       const reader = response.body.getReader();
       const decoder = new TextDecoder('utf-8');
       let buffer = '';
@@ -252,9 +248,8 @@ export default function Chat() {
         
         buffer += decoder.decode(value, { stream: true });
         
-        // Split precisely by double newlines to isolate complete SSE events
         const chunks = buffer.split('\n\n');
-        buffer = chunks.pop() || ''; // Keep the last incomplete chunk in the buffer
+        buffer = chunks.pop() || ''; 
 
         for (const chunk of chunks) {
           if (chunk.startsWith('data: ')) {
@@ -270,7 +265,6 @@ export default function Chat() {
               
               if (parsedData.token) {
                 accumulatedResponse += parsedData.token;
-                // Using accumulated response prevents dropped tokens when React batches state updates
                 setChatResponse(accumulatedResponse); 
               }
 
@@ -278,7 +272,6 @@ export default function Chat() {
                 setChatResponse(prev => prev + '\n\n❌ System Error: ' + parsedData.error);
               }
             } catch (err) {
-              // Gracefully ignore malformed JSON chunks from transit
               console.warn("Skipped malformed chunk");
             }
           }
@@ -309,8 +302,8 @@ export default function Chat() {
   // ==========================================
   if (!isAuthenticated) {
     return (
-      <div className="flex h-screen bg-[#111827] items-center justify-center p-4">
-        <div className="bg-[#1f2937] p-8 rounded-2xl shadow-2xl w-full max-w-md border border-gray-700 animate-fade-in-up">
+      <div className="flex h-[100dvh] w-full overflow-hidden bg-[#111827] items-center justify-center p-4">
+        <div className="bg-[#1f2937] p-8 rounded-2xl shadow-2xl w-full max-w-md border border-gray-700 animate-fade-in-up mx-2">
           <div className="flex items-center justify-center gap-3 mb-8">
             <ShieldCheckIcon className="w-12 h-12 text-emerald-500" />
             <h1 className="text-4xl font-bold text-gray-50 tracking-tight">Aegis_<span className="text-emerald-500 font-extralight">ai</span></h1>
@@ -363,12 +356,12 @@ export default function Chat() {
   // 🎨 RENDER MAIN CHAT INTERFACE
   // ==========================================
   return (
-    <div className="flex h-screen bg-[#111827] text-gray-200 font-sans antialiased overflow-hidden relative">
+    <div className="flex h-[100dvh] w-full bg-[#111827] text-gray-200 font-sans antialiased overflow-hidden relative">
       
       {/* ⚙️ SETTINGS MODAL */}
       {isSettingsOpen && (
-        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-[#1f2937] border border-gray-700 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in px-4">
+          <div className="bg-[#1f2937] border border-gray-700 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden mx-auto">
             <div className="flex items-center justify-between p-6 border-b border-gray-700 bg-[#1a2332]">
               <h3 className="text-xl font-bold text-gray-100 flex items-center gap-2">
                 <Cog6ToothIcon className="w-6 h-6 text-emerald-500" /> System Configuration
@@ -424,7 +417,7 @@ export default function Chat() {
       )}
 
       {/* Sidebar */}
-      <aside className="w-72 bg-[#1f2937] p-6 flex flex-col border-r border-gray-700 hidden md:flex">
+      <aside className="w-72 bg-[#1f2937] p-6 flex flex-col border-r border-gray-700 hidden md:flex shrink-0">
         <div className="flex items-center gap-3 mb-10">
           <ShieldCheckIcon className="w-10 h-10 text-emerald-500" />
           <h1 className="text-3xl font-bold text-gray-50 tracking-tight">Aegis_<span className="text-emerald-500 font-extralight">ai</span></h1>
@@ -472,51 +465,51 @@ export default function Chat() {
       </aside>
 
       {/* Main Chat Area */}
-      <main className="flex-1 flex flex-col p-6 lg:p-12 xl:px-32 xl:py-12 h-full relative">
-        <header className="flex items-center justify-between pb-6 mb-6 border-b border-gray-700 shrink-0">
-          <div className="flex items-center gap-4">
-            <ChatBubbleBottomCenterTextIcon className="w-8 h-8 text-emerald-500" />
-            <h1 className="text-2xl font-extrabold text-gray-50 tracking-tighter">Aegis Terminal</h1>
+      <main className="flex-1 flex flex-col p-4 sm:p-6 lg:p-12 xl:px-32 xl:py-12 h-full relative overflow-x-hidden w-full">
+        <header className="flex items-center justify-between pb-4 sm:pb-6 mb-4 sm:mb-6 border-b border-gray-700 shrink-0">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <ChatBubbleBottomCenterTextIcon className="w-6 h-6 sm:w-8 sm:h-8 text-emerald-500 shrink-0" />
+            <h1 className="text-xl sm:text-2xl font-extrabold text-gray-50 tracking-tighter truncate">Aegis Terminal</h1>
           </div>
-          <div className="flex items-center gap-3 bg-[#1f2937] px-4 py-2 rounded-full border border-gray-700 shadow-inner">
-            <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></div>
-            <span className="text-xs font-semibold text-emerald-400 uppercase tracking-wider hidden sm:block">SYSTEM READY</span>
+          <div className="flex items-center gap-2 sm:gap-3 bg-[#1f2937] px-3 sm:px-4 py-1.5 sm:py-2 rounded-full border border-gray-700 shadow-inner shrink-0">
+            <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-emerald-500 animate-pulse"></div>
+            <span className="text-[10px] sm:text-xs font-semibold text-emerald-400 uppercase tracking-wider hidden sm:block">SYSTEM READY</span>
           </div>
         </header>
 
         {/* Chat Stream */}
-        <div className="flex-grow overflow-y-auto pr-4 mb-6 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
+        <div className="flex-grow overflow-y-auto overflow-x-hidden pr-2 sm:pr-4 mb-4 sm:mb-6 scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent">
           
           {!hasActiveChat && (
-            <div className="h-full flex flex-col items-center justify-center animate-fade-in-up mt-10">
-              <ShieldCheckIcon className="w-20 h-20 text-emerald-500/80 mb-6" />
-              <h2 className="text-4xl font-bold text-gray-100 mb-3">Welcome back, {currentUser?.name}.</h2>
-              <p className="text-gray-400 text-lg mb-8 text-center max-w-xl">
+            <div className="h-full flex flex-col items-center justify-center animate-fade-in-up mt-4 sm:mt-10 px-2 sm:px-4">
+              <ShieldCheckIcon className="w-16 h-16 sm:w-20 sm:h-20 text-emerald-500/80 mb-4 sm:mb-6" />
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-100 mb-2 sm:mb-3 text-center">Welcome back, {currentUser?.name}.</h2>
+              <p className="text-gray-400 text-base sm:text-lg mb-6 sm:mb-8 text-center max-w-xl">
                 I am Aegis, your local Omni-AI. I can debug architectures, analyze security threats, and execute logic securely.
               </p>
               
-              <div className="flex flex-wrap justify-center gap-3 w-full max-w-3xl">
+              <div className="flex flex-wrap justify-center gap-2 sm:gap-3 w-full max-w-3xl">
                 <button 
                   onClick={() => handleStarterPrompt("Can you review this React component for performance bottlenecks?\n\n```javascript\n\n```")} 
-                  className="px-5 py-2.5 bg-[#1f2937] border border-gray-700 rounded-full hover:border-emerald-500 hover:text-emerald-400 text-sm font-medium text-gray-300 transition-colors shadow-sm"
+                  className="px-4 py-2 sm:px-5 sm:py-2.5 bg-[#1f2937] border border-gray-700 rounded-full hover:border-emerald-500 hover:text-emerald-400 text-xs sm:text-sm font-medium text-gray-300 transition-colors shadow-sm"
                 >
                   ⚡ Optimize React Code
                 </button>
                 <button 
                   onClick={() => handleStarterPrompt("Analyze the attached document and summarize the key security vulnerabilities.")} 
-                  className="px-5 py-2.5 bg-[#1f2937] border border-gray-700 rounded-full hover:border-emerald-500 hover:text-emerald-400 text-sm font-medium text-gray-300 transition-colors shadow-sm"
+                  className="px-4 py-2 sm:px-5 sm:py-2.5 bg-[#1f2937] border border-gray-700 rounded-full hover:border-emerald-500 hover:text-emerald-400 text-xs sm:text-sm font-medium text-gray-300 transition-colors shadow-sm"
                 >
                   📄 Summarize Document
                 </button>
                 <button 
                   onClick={() => handleStarterPrompt("Write a secure, production-ready REST API endpoint in Node.js for...")} 
-                  className="px-5 py-2.5 bg-[#1f2937] border border-gray-700 rounded-full hover:border-emerald-500 hover:text-emerald-400 text-sm font-medium text-gray-300 transition-colors shadow-sm"
+                  className="px-4 py-2 sm:px-5 sm:py-2.5 bg-[#1f2937] border border-gray-700 rounded-full hover:border-emerald-500 hover:text-emerald-400 text-xs sm:text-sm font-medium text-gray-300 transition-colors shadow-sm"
                 >
                   🛠️ Generate API
                 </button>
                 <button 
                   onClick={() => handleStarterPrompt("Explain the exact differences between fine-tuning an LLM and using a RAG architecture.")} 
-                  className="px-5 py-2.5 bg-[#1f2937] border border-gray-700 rounded-full hover:border-emerald-500 hover:text-emerald-400 text-sm font-medium text-gray-300 transition-colors shadow-sm"
+                  className="px-4 py-2 sm:px-5 sm:py-2.5 bg-[#1f2937] border border-gray-700 rounded-full hover:border-emerald-500 hover:text-emerald-400 text-xs sm:text-sm font-medium text-gray-300 transition-colors shadow-sm"
                 >
                   🧠 Compare AI Models
                 </button>
@@ -526,18 +519,18 @@ export default function Chat() {
 
           {chatHistory.map((msg, index) => (
             msg.role === 'user' ? (
-              <div key={index} className="flex items-start gap-4 justify-end mb-8">
-                <div className="bg-[#2e3a4e] text-gray-100 p-5 rounded-2xl rounded-br-none max-w-2xl shadow-md">
-                  <p className="text-[16px] leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+              <div key={index} className="flex items-start gap-2 sm:gap-4 justify-end mb-6 sm:mb-8">
+                <div className="bg-[#2e3a4e] text-gray-100 p-4 sm:p-5 rounded-2xl rounded-br-none max-w-[85%] sm:max-w-2xl shadow-md overflow-hidden">
+                  <p className="text-[14px] sm:text-[16px] leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
                 </div>
-                <UserCircleIcon className="w-10 h-10 text-gray-600 mt-1 shrink-0" />
+                <UserCircleIcon className="w-8 h-8 sm:w-10 sm:h-10 text-gray-600 mt-1 shrink-0 hidden sm:block" />
               </div>
             ) : (
-              <div key={index} className="flex items-start gap-4 mb-6">
-                <ShieldCheckIcon className="w-10 h-10 text-emerald-500 mt-1 shrink-0" />
-                <div className="flex flex-col w-full max-w-4xl">
-                  <div className="bg-[#1f2937] text-gray-200 p-6 rounded-2xl rounded-bl-none border border-gray-700 shadow-lg overflow-x-auto text-[16px]">
-                    <div className="prose prose-invert prose-emerald max-w-none">
+              <div key={index} className="flex items-start gap-2 sm:gap-4 mb-4 sm:mb-6 w-full overflow-hidden">
+                <ShieldCheckIcon className="w-8 h-8 sm:w-10 sm:h-10 text-emerald-500 mt-1 shrink-0 hidden sm:block" />
+                <div className="flex flex-col w-full min-w-0">
+                  <div className="bg-[#1f2937] text-gray-200 p-4 sm:p-6 rounded-2xl rounded-bl-none border border-gray-700 shadow-lg overflow-x-auto w-full text-[14px] sm:text-[16px]">
+                    <div className="prose prose-sm sm:prose-base prose-invert prose-emerald max-w-none break-words">
                       <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{msg.content}</ReactMarkdown>
                     </div>
                   </div>
@@ -547,21 +540,21 @@ export default function Chat() {
           ))}
 
           {currentQuery && (
-            <div className="flex items-start gap-4 justify-end mb-8 animate-fade-in-up">
-              <div className="bg-[#2e3a4e] text-gray-100 p-5 rounded-2xl rounded-br-none max-w-2xl shadow-md">
-                <p className="text-[16px] leading-relaxed whitespace-pre-wrap">{currentQuery}</p>
+            <div className="flex items-start gap-2 sm:gap-4 justify-end mb-6 sm:mb-8 animate-fade-in-up">
+              <div className="bg-[#2e3a4e] text-gray-100 p-4 sm:p-5 rounded-2xl rounded-br-none max-w-[85%] sm:max-w-2xl shadow-md overflow-hidden">
+                <p className="text-[14px] sm:text-[16px] leading-relaxed whitespace-pre-wrap break-words">{currentQuery}</p>
               </div>
-              <UserCircleIcon className="w-10 h-10 text-gray-600 mt-1 shrink-0" />
+              <UserCircleIcon className="w-8 h-8 sm:w-10 sm:h-10 text-gray-600 mt-1 shrink-0 hidden sm:block" />
             </div>
           )}
 
           {(chatResponse || toolStatus) && (
-            <div className="flex items-start gap-4 mb-6 animate-fade-in-up">
-              <ShieldCheckIcon className="w-10 h-10 text-emerald-500 mt-1 shrink-0" />
-              <div className="flex flex-col w-full max-w-4xl">
+            <div className="flex items-start gap-2 sm:gap-4 mb-4 sm:mb-6 animate-fade-in-up w-full overflow-hidden">
+              <ShieldCheckIcon className="w-8 h-8 sm:w-10 sm:h-10 text-emerald-500 mt-1 shrink-0 hidden sm:block" />
+              <div className="flex flex-col w-full min-w-0">
                 {toolStatus && (
-                  <div className="flex items-center space-x-2 text-sm text-emerald-400 font-mono animate-pulse mb-3 bg-[#1f2937] p-3 rounded-xl border border-gray-700 max-w-max shadow-sm">
-                    <svg className="animate-spin h-4 w-4 text-emerald-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <div className="flex items-center space-x-2 text-xs sm:text-sm text-emerald-400 font-mono animate-pulse mb-3 bg-[#1f2937] p-2 sm:p-3 rounded-xl border border-gray-700 max-w-max shadow-sm">
+                    <svg className="animate-spin h-3 w-3 sm:h-4 sm:w-4 text-emerald-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>
@@ -569,27 +562,27 @@ export default function Chat() {
                   </div>
                 )}
                 {chatResponse && (
-  <div className="bg-[#1f2937] text-gray-200 p-6 rounded-2xl rounded-bl-none border border-gray-700 shadow-lg overflow-x-auto text-[16px]">
-    <div className="prose prose-invert prose-emerald max-w-none">
-      {isGenerating ? (
-        <div className="whitespace-pre-wrap font-sans leading-relaxed">{chatResponse}</div>
-      ) : (
-        <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{chatResponse}</ReactMarkdown>
-      )}
-    </div>
-  </div>
-)}
+                  <div className="bg-[#1f2937] text-gray-200 p-4 sm:p-6 rounded-2xl rounded-bl-none border border-gray-700 shadow-lg overflow-x-auto w-full text-[14px] sm:text-[16px]">
+                    <div className="prose prose-sm sm:prose-base prose-invert prose-emerald max-w-none break-words">
+                      {isGenerating ? (
+                        <div className="whitespace-pre-wrap font-sans leading-relaxed">{chatResponse}</div>
+                      ) : (
+                        <ReactMarkdown rehypePlugins={[rehypeHighlight]}>{chatResponse}</ReactMarkdown>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
 
           {isGenerating && !chatResponse && !toolStatus && (
-            <div className="flex items-center gap-4 mb-6">
-              <ShieldCheckIcon className="w-10 h-10 text-emerald-500 shrink-0" />
-              <div className="flex gap-2.5">
-                <div className="w-3.5 h-3.5 bg-emerald-500 rounded-full animate-bounce delay-75"></div>
-                <div className="w-3.5 h-3.5 bg-emerald-500 rounded-full animate-bounce delay-150"></div>
-                <div className="w-3.5 h-3.5 bg-emerald-500 rounded-full animate-bounce delay-300"></div>
+            <div className="flex items-center gap-2 sm:gap-4 mb-6">
+              <ShieldCheckIcon className="w-8 h-8 sm:w-10 sm:h-10 text-emerald-500 shrink-0 hidden sm:block" />
+              <div className="flex gap-2.5 ml-2 sm:ml-0">
+                <div className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 bg-emerald-500 rounded-full animate-bounce delay-75"></div>
+                <div className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 bg-emerald-500 rounded-full animate-bounce delay-150"></div>
+                <div className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 bg-emerald-500 rounded-full animate-bounce delay-300"></div>
               </div>
             </div>
           )}
@@ -597,43 +590,43 @@ export default function Chat() {
         </div>
 
         {/* Input Area */}
-        <div className="mt-auto relative shrink-0 flex flex-col">
+        <div className="mt-auto relative shrink-0 flex flex-col w-full">
           {selectedFile && (
-            <div className="absolute -top-14 left-0 flex items-center gap-3 bg-[#1f2937] border border-emerald-600/50 text-gray-200 px-4 py-2 rounded-xl shadow-lg animate-fade-in-up">
+            <div className="absolute -top-12 sm:-top-14 left-0 flex items-center gap-2 sm:gap-3 bg-[#1f2937] border border-emerald-600/50 text-gray-200 px-3 sm:px-4 py-2 rounded-xl shadow-lg animate-fade-in-up z-10 max-w-[90%] sm:max-w-md">
               {filePreview ? (
-                <img src={filePreview} alt="Preview" className="w-8 h-8 object-cover rounded-md border border-gray-600" />
+                <img src={filePreview} alt="Preview" className="w-6 h-6 sm:w-8 sm:h-8 object-cover rounded-md border border-gray-600 shrink-0" />
               ) : selectedFile.type === 'application/pdf' ? (
-                <DocumentIcon className="w-6 h-6 text-red-400" />
+                <DocumentIcon className="w-5 h-5 sm:w-6 sm:h-6 text-red-400 shrink-0" />
               ) : (
-                <PhotoIcon className="w-6 h-6 text-blue-400" />
+                <PhotoIcon className="w-5 h-5 sm:w-6 sm:h-6 text-blue-400 shrink-0" />
               )}
               
-              <div className="flex flex-col max-w-[200px]">
-                <span className="text-sm font-semibold truncate">{selectedFile.name}</span>
-                <span className="text-xs text-gray-400">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</span>
+              <div className="flex flex-col min-w-0 max-w-[120px] sm:max-w-[200px]">
+                <span className="text-xs sm:text-sm font-semibold truncate">{selectedFile.name}</span>
+                <span className="text-[10px] sm:text-xs text-gray-400">{(selectedFile.size / 1024 / 1024).toFixed(2)} MB</span>
               </div>
-              <button type="button" onClick={clearFile} className="ml-2 text-gray-400 hover:text-red-400 transition-colors">
-                <XMarkIcon className="w-5 h-5" />
+              <button type="button" onClick={clearFile} className="ml-auto text-gray-400 hover:text-red-400 transition-colors shrink-0 p-1">
+                <XMarkIcon className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             </div>
           )}
 
-          <form onSubmit={sendMessage} className="relative flex items-end gap-2">
+          <form onSubmit={sendMessage} className="relative flex items-end gap-2 w-full">
             <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".pdf,image/png,image/jpeg,image/webp" className="hidden" />
-            <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isGenerating} className="p-4 bg-[#1f2937] border-2 border-gray-700 rounded-2xl text-gray-400 hover:text-emerald-400 hover:border-emerald-500 transition-all disabled:opacity-50 h-[60px] flex items-center justify-center shrink-0">
-              <PaperClipIcon className="w-6 h-6" />
+            <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isGenerating} className="p-3 sm:p-4 bg-[#1f2937] border-2 border-gray-700 rounded-xl sm:rounded-2xl text-gray-400 hover:text-emerald-400 hover:border-emerald-500 transition-all disabled:opacity-50 h-[50px] sm:h-[60px] flex items-center justify-center shrink-0">
+              <PaperClipIcon className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
 
-            <div className="relative flex-grow">
+            <div className="relative flex-grow min-w-0">
               <textarea
                 ref={textareaRef} rows={1} value={prompt}
                 onChange={(e) => { setPrompt(e.target.value); handleInput(e); }} onKeyDown={handleKeyDown}
-                placeholder="Message Aegis... (Shift+Enter for new line)"
-                className="w-full bg-[#1f2937] border-2 border-gray-700 focus:border-emerald-600 focus:ring-0 text-gray-100 placeholder-gray-500 rounded-2xl py-4 pl-6 pr-16 text-[16px] shadow-xl transition-all duration-150 resize-none overflow-hidden"
-                style={{ minHeight: '60px', maxHeight: '200px' }} disabled={isGenerating}
+                placeholder="Message Aegis..."
+                className="w-full bg-[#1f2937] border-2 border-gray-700 focus:border-emerald-600 focus:ring-0 text-gray-100 placeholder-gray-500 rounded-xl sm:rounded-2xl py-3.5 sm:py-4 pl-4 sm:pl-6 pr-12 sm:pr-16 text-[14px] sm:text-[16px] shadow-xl transition-all duration-150 resize-none overflow-hidden"
+                style={{ minHeight: '50px', maxHeight: '150px' }} disabled={isGenerating}
               />
-              <button type="submit" disabled={isGenerating || (!prompt.trim() && !selectedFile)} className="absolute right-3 bottom-3 bg-emerald-600 text-white p-2.5 rounded-xl hover:bg-emerald-500 disabled:opacity-30 transition-colors">
-                <PaperAirplaneIcon className="w-5 h-5" />
+              <button type="submit" disabled={isGenerating || (!prompt.trim() && !selectedFile)} className="absolute right-2 sm:right-3 bottom-2 sm:bottom-3 bg-emerald-600 text-white p-2 sm:p-2.5 rounded-lg sm:rounded-xl hover:bg-emerald-500 disabled:opacity-30 transition-colors">
+                <PaperAirplaneIcon className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             </div>
           </form>
