@@ -675,19 +675,34 @@ export default function Chat() {
 
           <form onSubmit={sendMessage} className="relative flex items-end gap-2 w-full">
             <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".pdf,image/png,image/jpeg,image/webp" className="hidden" />
-            <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isGenerating} className="p-3 sm:p-4 bg-[#1f2937] border-2 border-gray-700 rounded-xl sm:rounded-2xl text-gray-400 hover:text-emerald-400 hover:border-emerald-500 transition-all disabled:opacity-50 h-[50px] sm:h-[60px] flex items-center justify-center shrink-0">
+            
+            {/* 🟢 FIX 1: Exact dimension matching (54px mobile, 60px desktop) */}
+            <button 
+              type="button" 
+              onClick={() => fileInputRef.current?.click()} 
+              disabled={isGenerating} 
+              className="bg-[#1f2937] border-2 border-gray-700 rounded-xl sm:rounded-2xl text-gray-400 hover:text-emerald-400 hover:border-emerald-500 transition-all disabled:opacity-50 h-[54px] w-[54px] sm:h-[60px] sm:w-[60px] flex items-center justify-center shrink-0"
+            >
               <PaperClipIcon className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
 
             <div className="relative flex-grow min-w-0">
+              {/* 🟢 FIX 2: Switched inline minHeight to Tailwind classes for perfect syncing */}
               <textarea
                 ref={textareaRef} rows={1} value={prompt}
                 onChange={(e) => { setPrompt(e.target.value); handleInput(e); }} onKeyDown={handleKeyDown}
                 placeholder="Message Aegis..."
-                className="w-full bg-[#1f2937] border-2 border-gray-700 focus:border-emerald-600 focus:ring-0 text-gray-100 placeholder-gray-500 rounded-xl sm:rounded-2xl py-3.5 sm:py-4 pl-4 sm:pl-6 pr-12 sm:pr-16 text-[14px] sm:text-[16px] shadow-xl transition-all duration-150 resize-none overflow-hidden"
-                style={{ minHeight: '50px', maxHeight: '150px' }} disabled={isGenerating}
+                className="block w-full min-h-[54px] sm:min-h-[60px] bg-[#1f2937] border-2 border-gray-700 focus:border-emerald-600 focus:ring-0 text-gray-100 placeholder-gray-500 rounded-xl sm:rounded-2xl py-3.5 sm:py-4 pl-4 sm:pl-6 pr-12 sm:pr-16 text-[14px] sm:text-[16px] shadow-xl transition-all duration-150 resize-none overflow-hidden"
+                style={{ maxHeight: '150px' }} 
+                disabled={isGenerating}
               />
-              <button type="submit" disabled={isGenerating || (!prompt.trim() && !selectedFile)} className="absolute right-2 sm:right-3 bottom-2 sm:bottom-3 bg-emerald-600 text-white p-2 sm:p-2.5 rounded-lg sm:rounded-xl hover:bg-emerald-500 disabled:opacity-30 transition-colors">
+              
+              {/* 🟢 FIX 3: Mathematically centered the Send Button based on the new 54px/60px heights */}
+              <button 
+                type="submit" 
+                disabled={isGenerating || (!prompt.trim() && !selectedFile)} 
+                className="absolute right-2 sm:right-3 bottom-[11px] sm:bottom-[10px] bg-emerald-600 text-white p-2 sm:p-2.5 rounded-lg sm:rounded-xl hover:bg-emerald-500 disabled:opacity-30 transition-colors flex items-center justify-center"
+              >
                 <PaperAirplaneIcon className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             </div>
